@@ -1,0 +1,43 @@
+---
+title: "The Principles of Machine Learning Research"
+author: "Andrew R. Bower"
+date: "`r format(Sys.Date())`"
+output:
+  html_document:
+    theme: readable
+    toc: true
+    toc_depth: 2
+    toc_float: true
+    code_download: true
+---
+
+# Key Terminology
+
+1. **Explanation**. Research with the aim of understanding the underlying mechanisms.
+2. **Description**. Research with the aim of describing relationships or distributions. 
+3. **Prediction**. Research with the aim of maximally explaining variability in an outcome. 
+4. **Inductive**. Moves from observation (data) to hypothesis to theory. 
+5. **Hypothetico-Deductive**. Moves from general to more specific, from theory to observation (data) to confirmation. 
+6. **Abductive**. Moves from observation (data) to deciding among competing theories to determine which best explain the observatino. 
+7. **Exploratory Data Analyses**. This has traditioally referred to the use of data visualization tools, while in more recent years has encompassed the sue of machine learning as an exploratory analytic tool. 
+
+> "just as the ability to devise simple but evocative models is the signature of the great scientist so overelaboration and overparameterization is often the mark of mediocrity" ~ Box, 1976
+
+Four Principles to help us understand how machine learning fits into the current climate of social and behavioral science. 
+
+* Principle 1: Machine Learning is not just lazy induction
+* Principle 2: Orienting our goals relative to prediction, explanation, and description
+* Principle 3: Labeling a study as exploratory or confirmatory is too simplistic
+* Principle 4: Report everything
+
+## Principle #1: Machine Learning is not just lazy induction
+
+Often, when you have a dataset, many individual variables, batteries, or data points can explain a phenomenon together or after accounting for each other. Machine Learning is better equipped to handle collinearity than duct tape linear regression. Indeed, ML algorithms may be able to determine which of these many variables are necessary to predict the outcome of interest and may inform subsequent theory. As such, we can describe machine learning as _theory expanding_ as it can help identify the most critical predictors of complex, longitudinal effects (e.g., wellbeing).
+
+### Complexity
+
+What degree of complexity do I wish to interpret? This is best exemplified in the desire to identify a small number of large effects among many interrelated variables. Not only is this unlikely in the social and behavioral sciences where the variables are all related to each other at least to a small degree (i.e., the crud factor Meehle, 1990), but forcing this structure upon the results comes at a price. The second way, is fitting a final model and forcing this so that we come to think of it as the _true model_, while other competing explanations are only minutely worse. _Explanatory pluralism_ (Kendler, 2005) is used often to describe the phenomenon that many critical factors and algorithms can explain a phenomenon. 
+
+
+
+
