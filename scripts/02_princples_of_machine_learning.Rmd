@@ -18,8 +18,8 @@ output:
 3. **Prediction**. Research with the aim of maximally explaining variability in an outcome. 
 4. **Inductive**. Moves from observation (data) to hypothesis to theory. 
 5. **Hypothetico-Deductive**. Moves from general to more specific, from theory to observation (data) to confirmation. 
-6. **Abductive**. Moves from observation (data) to deciding among competing theories to determine which best explain the observatino. 
-7. **Exploratory Data Analyses**. This has traditioally referred to the use of data visualization tools, while in more recent years has encompassed the sue of machine learning as an exploratory analytic tool. 
+6. **Abductive**. Moves from observation (data) to deciding among competing theories to determine which best explain the observation. 
+7. **Exploratory Data Analyses**. This has traditionally referred to the use of data visualization tools, while in more recent years has encompassed the sue of machine learning as an exploratory analytic tool. 
 
 > "just as the ability to devise simple but evocative models is the signature of the great scientist so overelaboration and overparameterization is often the mark of mediocrity" ~ Box, 1976
 
@@ -37,6 +37,93 @@ Often, when you have a dataset, many individual variables, batteries, or data po
 ### Complexity
 
 What degree of complexity do I wish to interpret? This is best exemplified in the desire to identify a small number of large effects among many interrelated variables. Not only is this unlikely in the social and behavioral sciences where the variables are all related to each other at least to a small degree (i.e., the crud factor Meehle, 1990), but forcing this structure upon the results comes at a price. The second way, is fitting a final model and forcing this so that we come to think of it as the _true model_, while other competing explanations are only minutely worse. _Explanatory pluralism_ (Kendler, 2005) is used often to describe the phenomenon that many critical factors and algorithms can explain a phenomenon. 
+
+### Abduction
+
+Much like null-hypothesis significance testing, many have applied machine learning without thinking. Abduction is considered the most prominant account of scientific inference (Haig, 2014). 
+
+1. F is some fact or collection of facts
+2. Hypothesis H1, if true, would explain F
+3. H1 is a better explanation of F that its competitors
+4. Therefore, probably, H1 is true
+
+## Principle #2: Orienting our goals relative to prediction, explanation, and description
+
+What are the specific goals of machine learning? 
+
+1. prediction, meaning where we focus almost exclusively on $Y$.
+2. identifying relationships, with the goal of trying to shed light on how $X$ associates with $Y$
+
+With prediction, there are distinctions and layers from _causal explanation, empirical prediction, and descriptive modeling_. With prediction we want our model to train to be able to predict in a different data set shrinking the difference or gap between $\hat{y}$ and $Y$, or prediction vs true score. 
+
+But, unlike engineering, or computer science, in social and behavioral science we rarely just want to predict, we also want to describe. But, in consideration of explanatory pluralism it is often the best case to test multiple algorithms together (since we are likely dealing with many predictors each contributing small effects to a measurable outcome). We should always include a linear effect because it is the simplest to understand and convey to stakeholders. The whole research process often also includes multiple steps that must be considered together which all lends back to "thinking" your description, prediction, and explanations components through. 
+
+## Principle #3: Labeling a study as exploratory of confirmatory is too simplistic
+
+There is likely a benefit from both extremes of the dichotomy, from the purely exploratory where you apply a few different algorithms with no theory or rationale; to the applied specific regression weights to confirm existing theory. Each should and can be used in service of the goal to _describe_, _predict_, or _explain_. 
+
+### Model Size
+
+With SEMs (DAGs) and network studies, or other dynamic processes the simple null vs alternative hypothesis is a straw man and often impossible. What instead we mean by confirmatory is minimal degree of specification - not completely explanatory. While there is a draw towards deriving the simplest explanation, there are clearly psychological and behavioral phenomenon that are so complex they require a complex algorithm to understand. But, what can happen now, we can derive smaller to higher order, but can't go in reverse. So for example we can capture Big 5 personality traits via text lexicon, but we cannot take the Big 5 back to predict what people might say. 
+
+### Level of Hypothesis
+
+We tend to get caught up in a single sentence effect that is either there or not; but, this alone has likely stunted our understanding of social and behavioral phenomenon because the systems we measure are very complex. Here, we want to test multiple theoretical _systems_ of explanations, prediction, and descriptions against each other. Again, we should think of exploratory and confirmatory as a continuum rather than a dichotomy and should be in serve of each other. 
+
+### Types of Relationships
+
+Traditionally, we didn't have the size or the machine power to test non linear effects. We do now. So, we can test almost anything and as such we should strive for more general or softer forms of hypotheses:
+
+1. It is hypothesized that interactions exist between a subset of $X_1$ through $X_5$.
+2. A model that allows for interactions between predictors will fit better than a main effects only model.
+3. Nonlinear relationships exist between $X_1$ through $X_10$ and $Y$, thus a boosting model with stumps will fit better than linear regression. 
+4. A model that allows for a higher degree of nonlinearity will be a better fit to a model with all possible interaction and quadratic effects. 
+
+These are at the **model** level not the specific items. 
+
+Indeed, a soft hypothesis like "The outcome can be predicted with a specific set of predictors better than chance," or, "The dataset at hand is sufficiently informative to model a relationship between the set of predictors and outcome."
+
+1. **_Algorithm_**
+* **Theory based**: Algorithm inclusion based on hypothesized relationships in data
+* **Non-theory based**: Algorithm inclusion based on convenience or maximizing prediction
+
+2. **_Hyperparameters_**
+* **Theory based**: Set to be single values or a small set
+* **Non-theory based**: Based on software defaults or test a wide range
+
+3. **_Variable Inclusion_**
+* **Theory based**: Each predictor is justified
+* **Non-theory based**: Variables are chosen based on convenience
+
+4. **_Functional Form_**
+* **Theory based**: All or a subset of relationships are specified
+* **Non-theory based**: Using ensembles to derive variable importance
+
+5. **_Model Choice for Interpretation_**
+* **Theory based**: Prefer parsimony
+* **Non-theory based**: Prefer best fit
+
+### Exploratory Data Analysis
+
+Is not just visualizations. You can use ML algorithms per the bullets above, to explore complicated relationships to derive a testable soft-hypothesis. You should just cross-validate and ensure that you are not doing this on the same dataset (train vs test).
+
+## Principle #4: Report Everything
+
+Report everything. Preregister everything. Make everything open source. Take advantage of *syhtpop* in R to create synthetic copies of your data. 
+
+Report what... 
+
+1. ...algorithms were used
+2. ...hyperparameters test for each algorithm
+3. ...algorithm variants and which software package was used
+4. ...combinations of variables entered
+5. ...any transformations used
+6. ...type of cross-validation or bootstrapping used for each algorithm (can vary)
+7. ...degree of missing data and how this was handled for each algorithm
+
+
+
+
 
 
 

@@ -1,0 +1,272 @@
+---
+title: "The Practices of Machine Learning"
+author: "Andrew R. Bower"
+date: "`r format(Sys.Date())`"
+output:
+  html_document:
+    theme: readable
+    toc: true
+    toc_depth: 2
+    toc_float: true
+    code_download: true
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(message = FALSE, error = FALSE, warning = FALSE, comment = NA)
+```
+
+```{r, message = FALSE}
+if (!require("pacman")) install.packages("pacman"); library(pacman)
+
+pacman::p_load(tidyverse, broom, janitor, here, rmarkdown, rstanarm, haven, sf, ggthemes, tufte, Hmisc, modelr, DescTools, gridExtra)
+```
+
+
+# Key Terminology
+
+* ***Classification***. This can refer to using models to place observations into separate groups (cluster) or the modeling of a categorical, most often, binary outcome. 
+* ***Regression***. In the simplest case, this refers to the modeling of a continuous outcome, which in parametric models, involves using the Gaussian distribution. 
+* ***Imbalance***. This occurs when the outcome of interest has a smaller proportion of one class, which is also referred to as a skewed outcome. This most often occurs with clinical outcomes that have a low proportion of positive cases in the population, such as suicide attempts or cancer diagnosis. 
+* ***Resampling***. This refers to the general process of selecting observations (rows) from a dataset, oftentimes repeated. In the simplest case, this involves splitting a dataset into two partitions, while more complicated methods repeat this process a large number of times, and may reuse observations from for populating the newly partitioned datasets (bootstrap sampling). This is done so that the data used to train the model is not also used to produce fit metrics, thus driving less biased assessments of prediction performance.
+* ***Predict probability***. When the outcome is binary, most algorithms generate probabilities of belonging to the positive class (coded 1, as opposed to 0). This vector of probabilities (one for each observation) can be used to assess fit (using area under the receiver operating characteristic curve (AUC) or area under the precision recall curve (AUPRC), or to generate predicted class labels based on a cutoff, and then further assessed with a host of fit metrics (i.e., accuracy, recall). 
+
+# 3.2 Comparing Alorithms and Models
+
+In machine learning there is generally no reason to have an a priori notion that one method will fit better than any other: the _no free lunch_ theorem (Wolpert, 1996). As such, you should run multiple algorithms and a regression, tried and true, or with selection (i.e., lasso) and compare fits. Conclusions often can get more support if buoyed by multiple algorithms; epistemologically, this also aligns with the idea of _consilience_ where multiple different lens of understanding that explain a phenomenon or the mechanisms that generate a phenomenon similarly is a sign of a strong understanding. 
+
+# 3.3 Model Fit
+
+To motivate this section let's consider a linear regression model on a continuous outcome and predictor. To evaluate how well our linear algorithm fits the data, we can calculate a _Mean Square Error_ (MSE): 
+
+$\operatorname{MSE} = \frac{1}{n} \sum\limits_{i=1}^{N} (y_i - \hat{f}(x_i))^2$.
+
+Where the misfit as measured by MSE is small if the predicted and actual outcomes for observation _i_ are similar.
+
+We could also calculate $\operatorname{R}^2$, which gives us the proportion of variance explained in the outcome as predicted by the independent variable(s). 
+
+We can calculate $\operatorname{R}^2$ in the ANOVA way, and the regression way. In the ANOVA way: 
+
+$\operatorname{SS_{reg}} = \sum\limits_{i}(\hat{f}(x_i) - \bar{y})^2$, the sum of squares of regressions
+
+$\operatorname{SS_{tot}} = \sum\limits_{i}(y_i - \bar{y})^2$, the total sum of squares where $\bar{y}$ is the mean outcome of observed data
+
+$\operatorname{R}^2 = \frac{\operatorname{SS_{reg}}}{\operatorname{SS_{tot}}}$ will give you the $\operatorname{R}^2$.
+
+You can also calculate the $\operatorname{R}^2$ as the squared correlation between the vector of predicted responses and actual responses. This is often best represented visually in a plot. They don't seem to provide access to the data to produce the figure to do this. 
+
+They regress PKU exposure in mothers on infant cognitive development as measured by IQ. The model fit was linear and showed $I\hat{Q}_i = 107.43 - 2.91 * PHE_i$. The model had an MSE of 174.487 and an $R^2$ of 0.699. It does seem that 70% of the variance explained is good, but you can see from the plot (in the book) that the relationship is polynomial regression from $PHE^2 ... PHE^{20}$. The other option is to run a random forest model with minimal trees. They discuss fitting larger trees that fit the data better, but the larger trees maximize on small nuances and occurrences within the data thus fitting the data too well. Many of these fit statistics should not be thought of as all-or-nothing, but rather to a degree. Since _overfititng_ pertains to the degree of generalizability from our fit model. We don't want to be so good at describing our sample that we loose the forest for all the trees.
+
+```{r}
+# Read Data into R
+dd <- read_table(here("data-raw/apexpos.dat"))
+
+# Set names
+names(dd) <- c('id', 'apexpos', 'fsiq7')
+
+# Look at the data
+glimpse(dd)
+
+## Plotting Full Scale IQ by PHE
+dd |> 
+  ggplot(aes(x = apexpos, y = fsiq7)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE, formula = y ~ x, color = "firebrick", linewidth = 0.5) +
+  theme_tufte() +
+  labs(x = "Phenylalanine Exposure (PHE)",
+       y = "Full Scale IQ at Age 7") 
+
+
+# Model
+fit <- with(dd, lm(fsiq7 ~ apexpos))
+
+RSS <- c(crossprod(fit$residuals))
+MSE <- RSS / length(fit$residuals)
+print(MSE)
+
+RMSE <- sqrt(MSE)
+print(RMSE)
+
+RMSE2 <- RSS / fit$df.residual
+print(RMSE2)
+```
+
+For fun, here is what fitting a polynomial would look like
+
+```{r}
+dd |> 
+  mutate(apexpos2 = apexpos^2) -> dd2
+
+# Model
+fit2 <- with(dd2, lm(fsiq7 ~ apexpos + apexpos2))
+summary(fit2)
+
+RSS <- c(crossprod(fit2$residuals))
+MSE <- RSS / length(fit2$residuals)
+print(MSE)
+
+RMSE <- sqrt(MSE)
+print(RMSE)
+
+RMSE2 <- RSS / fit2$df.residual
+print(RMSE2)
+
+## Plotting Full Scale IQ by PHE poly
+dd |> 
+  ggplot(aes(x = apexpos, y = fsiq7)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE, formula = y ~ x + I(x^2), color = "firebrick", linewidth = 0.5) +
+  theme_tufte() +
+  labs(x = "Phenylalanine Exposure (PHE)",
+       y = "Full Scale IQ at Age 7") 
+
+```
+
+# 3.4 Bias-Variance Trade-Off
+
+Every dataset has a finite amount of information that may be gleaned or extracted. The amount of information is related to many factors, most critically sample size and the quality of the predictors. What follows then is that the more information in a dataset the more information can be learned, in theory; but, generally generates more complex models. Model complexity can be broken down and evaluated as a tradeoff between: error, bias, and variance. 
+
+Error, or Variance of Error, is often called _irreducible error_ or the stuff we cannot control with our models. Basically, how the same scores on X can lead to different Y. A prediction model cannot differentiate these cases. What we do have control over (somewhat) is _bias_, or whether our estimates on average across many random draw from the population equal to the true values in the population. _Variance_ is the variability or precision of these estimates. Ideally we want low bias and low variance but often hard to control
+
+When a model is biased is when we fit a linear model to data that are not linear. That prediction is biased because it is not flexible enough to model the underlying relationships. So, we can test more complex relationships, varying polynomial parameters into the model. When we vary a parameter this is called _tuning parameters_ also known as a hyperparameter (tuning too hard on the data also increases the bias). 
+
+## Tuning Parameters
+
+Tuning parameters refer to the "settings" of each algorithm that control the behavior (flexibility) of each algorithm. When we have polynomial regressions adjusting the polynomial is the tuning parameter of the model. We can see how this works here with an over-tuned model:
+
+```{r}
+# Fit a hyper tuned polynomial
+fit1 <- lm(fsiq7 ~ poly(apexpos, 20), data = dd2)
+summary(fit1)
+
+# Plot it
+plot(dd2$apexpos, dd2$fsiq7, ylab = "Full Scale IQ at Age 7", xlab = "Phenylalanine Exposure (PHE)")
+lines(dd2$apexpos, predict(fit1), col = "firebrick")
+```
+We can show how the bias variance tradeoff works with the above by splitting our data into a test and training set. We can assess variance by how much the parameter estimates vary across 100 subsamples, which indicates how much the underlying functional form varies. We lift the code they provide, which is really poorly documented, and try and fix it. The idea here is to look at MSE for a poorly fit, and overly fit (i.e., not flexible and too flexible) algorithm. It doesn't work like their code because a) their code isn't reproducible b) their code is trash. 
+
+```{r}
+# Create Training dataset at 30% (they had 50)
+dd |> 
+  slice_sample(prop = .30) -> dd_train
+
+# Anti-join back to get testing dataset
+dd |> 
+  anti_join(dd_train) -> dd_test
+
+# Check them both
+dim(dd_train)
+dim(dd_test)
+
+# Sort Data
+dd_train <- dd_train[order(dd_train$apexpos), ]
+dd_test <- dd_test[order(dd_test$apexpos), ]
+dd <- dd[order(dd$apexpos), ]
+
+# Simulated data
+set.seed(123)
+num_samples <- 314
+num_train <- round(0.75 * num_samples)
+num_test <- num_samples - num_train
+
+# Adjust scale to achieve desired MSE values
+dd <- data.frame(
+  fsiq7 = rnorm(num_samples),  
+  apexpos = rnorm(num_samples)
+)
+
+dd_train <- dd[1:num_train, ]
+dd_test <- dd[(num_train + 1):num_samples, ]
+
+# Model Performance Comparison
+num_iterations_mse <- 1000
+mse_train <- matrix(NA, num_iterations_mse, 8)
+mse_test <- matrix(NA, num_iterations_mse, 8)
+
+for(i in 1:num_iterations_mse){
+  samp_train <- dd_train[sample(1:num_train, num_train, replace = TRUE), ]
+  samp_test <- dd_test[sample(1:num_test, num_test, replace = TRUE), ]
+  
+  for(j in 1:8){
+    lm_out <- lm(fsiq7 ~ poly(apexpos, j), samp_train)
+    mse_train[i,j] <- mean((samp_train$fsiq7 - predict(lm_out))^2)
+    mse_test[i,j] <- mean((samp_test$fsiq7 - predict(lm_out, samp_test))^2)
+  }
+}
+
+# Winsorize MSE
+mse_train <- Winsorize(mse_train, probs = c(0.10, 0.90))
+mse_test <- Winsorize(mse_test, probs = c(0.10, 0.90))
+
+# Calculate means and variances of MSE
+mean_train <- colMeans(mse_train)
+mean_test <- colMeans(mse_test)
+var_train <- apply(mse_train, 2, var) 
+var_test <- apply(mse_test, 2, var)
+
+# Create data frames for plotting
+mean_df <- data.frame(
+  power = 1:8,
+  mean_train = mean_train,
+  mean_test = mean_test
+)
+var_df <- data.frame(
+  power = 1:8,
+  var_train = var_train,
+  var_test = var_test
+)
+
+# Reshape data for plotting
+mean_long <- tidyr::pivot_longer(mean_df, cols = c(mean_train, mean_test), names_to = "Data", values_to = "Mean")
+var_long <- tidyr::pivot_longer(var_df, cols = c(var_train, var_test), names_to = "Data", values_to = "Variance")
+
+# Plot Mean MSE and MSE Variance side by side
+mean_plot <- ggplot(mean_long, aes(x = power, y = Mean, color = Data)) +
+  geom_line() +
+  labs(x = "Power", y = "Mean MSE") +
+  theme_tufte()
+
+var_plot <- ggplot(var_long, aes(x = power, y = Variance, color = Data)) +
+  geom_line() +
+  labs(x = "Power", y = "MSE Variance") +
+  theme_tufte()
+
+# Combine plots side by side
+grid.arrange(mean_plot, var_plot, ncol = 2)
+
+```
+
+But, what we can learn from this is: 
+
+1. As power increases, the training MSE monotonically decreases.
+2. Simultaneously, as the training MSE decreases, the testing mean and variance increase. 
+3. We want to decrease bias and variance. High degrees of variance are especially problematic with small sample sizes which requires the use of flexible algorithms. 
+4. "How well will my model fit on a holdout sample?" is the question we want to answer because we won't be able to visualize like we did here since most of our projects will have more than one predictor. 
+
+# Resampling
+
+To answer the question "How well will my model fit on a holdout sample?" there were a number of methods developed to provide answers without the need for a second dataset. 
+
+* _Model Assessment_: In estimating a single model, or after choosing a final model, determining the most unbiased assessment of model fit, either on new data or what it would be on new data (e.g., AIC, BIC, QAIC, WAIC, LOOCV, etc.).
+* _Model Selection_: Estimating the performance of multiple algorithms/models and choosing a final model among these. 
+
+The _train-validate-test_ paradigm that splits a sample into 50% train, 25% validate, and 25% test to evaluate the models' performance on an out of sample (test) data to see how close our predictive accuracy is; but, this requires a sample size sufficiently large (e.g., 5000).
+
+## k-Fold CV
+
+If it's smaller, then you can keep your sample in tact. In k-fold you can split the data into partitions. Here, you do not rerun on the holdout partitions instead _the model is kept fixed and used to create predicted responses for the observations_. Using the MSE as an example, this formally manifests itself as:
+
+$\operatorname{MSE_{holdout}} = \frac{1}{n} \sum\limits_{i=1}^{k}(y_i, holdout - \hat{f}training(x_i, holdout))$
+
+Which enamels us to compute the k-fold MSE:
+
+$\operatorname{MSE_{k-fold}} = \frac{1}{n} \sum\limits_{i=1}^{k}(\operatorname{MSE_k})$
+
+We can do this 10x's, because increasing the partitioning can reduce the chance for aberrant result due to chance, but as we increase it increases computing time. 
+
+## Nested CV
+
+
+
+
+
+
