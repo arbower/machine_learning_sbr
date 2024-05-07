@@ -36,15 +36,15 @@ Often, when you have a dataset, many individual variables, batteries, or data po
 
 ### Complexity
 
-What degree of complexity do I wish to interpret? This is best exemplified in the desire to identify a small number of large effects among many interrelated variables. Not only is this unlikely in the social and behavioral sciences where the variables are all related to each other at least to a small degree (i.e., the crud factor Meehle, 1990), but forcing this structure upon the results comes at a price. The second way, is fitting a final model and forcing this so that we come to think of it as the _true model_, while other competing explanations are only minutely worse. _Explanatory pluralism_ (Kendler, 2005) is used often to describe the phenomenon that many critical factors and algorithms can explain a phenomenon. 
+What degree of complexity do I wish to interpret? This is best exemplified in the desire to identify a small number of large effects among many interrelated variables. Not only is this unlikely in the social and behavioral sciences where the variables are all related to each other at least to a small degree (i.e., the crud factor Meehle, 1990), but forcing this structure upon the results comes at a price. The second way, is fitting a final model and forcing this so that we come to think of it as the _true model_, while other competing explanations are only minutely worse. _Explanatory pluralism_ (Kendler, 2005) is used often to describe the phenomenon that many critical factors and algorithms can explain a phenomenon. It is the goal of this book to then explain methods to generate insights and procedures to provide data as a means to evaluate explanations for social and behavioral phenomenon. 
 
 ### Abduction
 
-Much like null-hypothesis significance testing, many have applied machine learning without thinking. Abduction is considered the most prominant account of scientific inference (Haig, 2014). 
+Much like null-hypothesis significance testing, many have applied machine learning without thinking. Abduction is considered the most prominent account of scientific inference (Haig, 2014). 
 
 1. F is some fact or collection of facts
 2. Hypothesis H1, if true, would explain F
-3. H1 is a better explanation of F that its competitors
+3. H1 is a better explanation of F than its competitors
 4. Therefore, probably, H1 is true
 
 ## Principle #2: Orienting our goals relative to prediction, explanation, and description
@@ -56,19 +56,19 @@ What are the specific goals of machine learning?
 
 With prediction, there are distinctions and layers from _causal explanation, empirical prediction, and descriptive modeling_. With prediction we want our model to train to be able to predict in a different data set shrinking the difference or gap between $\hat{y}$ and $Y$, or prediction vs true score. 
 
-But, unlike engineering, or computer science, in social and behavioral science we rarely just want to predict, we also want to describe. But, in consideration of explanatory pluralism it is often the best case to test multiple algorithms together (since we are likely dealing with many predictors each contributing small effects to a measurable outcome). We should always include a linear effect because it is the simplest to understand and convey to stakeholders. The whole research process often also includes multiple steps that must be considered together which all lends back to "thinking" your description, prediction, and explanations components through. 
+But, unlike engineering, or computer science, in social and behavioral science we rarely just want to predict, we also want to describe. But, in consideration of explanatory pluralism it is often the best case to test multiple algorithms together (since we are likely dealing with many predictors each contributing small effects to a measurable outcome), and no one model is going to be drastically different, or drastically more correct. That being said, we should always include a linear effect because it is the simplest to understand and convey to stakeholders and other interested parties. The whole research process often also includes multiple steps that must be considered together which all lends back to "thinking" your description, prediction, and explanations components through. 
 
 ## Principle #3: Labeling a study as exploratory of confirmatory is too simplistic
 
-There is likely a benefit from both extremes of the dichotomy, from the purely exploratory where you apply a few different algorithms with no theory or rationale; to the applied specific regression weights to confirm existing theory. Each should and can be used in service of the goal to _describe_, _predict_, or _explain_. 
+There is likely a benefit from both extremes of the dichotomy, from the purely exploratory where you apply a few different algorithms with no theory or rationale; to the applied specific regression weights to confirm existing theory. Each should and can be used in service of the goal to _describe_, _predict_, or _explain_ on a continuum rather than dichotomy (i.e., two sides of the same coin).
 
 ### Model Size
 
-With SEMs (DAGs) and network studies, or other dynamic processes the simple null vs alternative hypothesis is a straw man and often impossible. What instead we mean by confirmatory is minimal degree of specification - not completely explanatory. While there is a draw towards deriving the simplest explanation, there are clearly psychological and behavioral phenomenon that are so complex they require a complex algorithm to understand. But, what can happen now, we can derive smaller to higher order, but can't go in reverse. So for example we can capture Big 5 personality traits via text lexicon, but we cannot take the Big 5 back to predict what people might say. 
+With SEMs (DAGs) and network studies, or other dynamic processes the simple null vs alternative hypothesis is a straw man and often impossible to formulate -- indeed, and meaningless once evidence is supplied. What instead we mean by confirmatory is minimal degree of specification - not completely explanatory. While there is a draw towards deriving the simplest explanation, there are clearly psychological and behavioral phenomenon that are so complex they require a complex algorithm to understand (perhaps, infinitely so e.g., consciousness). But, what can happen now, we can derive smaller to higher order, but can't go in reverse. So for example we can capture Big 5 personality traits via text lexicon, but we cannot take the Big 5 back to predict higher order variables. 
 
 ### Level of Hypothesis
 
-We tend to get caught up in a single sentence effect that is either there or not; but, this alone has likely stunted our understanding of social and behavioral phenomenon because the systems we measure are very complex. Here, we want to test multiple theoretical _systems_ of explanations, prediction, and descriptions against each other. Again, we should think of exploratory and confirmatory as a continuum rather than a dichotomy and should be in serve of each other. 
+We tend to get caught up in a single significant effect that is either there or not; but, this alone has likely stunted our understanding of social and behavioral phenomenon because the systems we measure are very complex. Here, we want to test multiple theoretical _systems_ of explanations, prediction, and descriptions against each other. Again, we should think of exploratory and confirmatory as a continuum rather than a dichotomy and should be in service of each other. 
 
 ### Types of Relationships
 
@@ -81,7 +81,7 @@ Traditionally, we didn't have the size or the machine power to test non linear e
 
 These are at the **model** level not the specific items. 
 
-Indeed, a soft hypothesis like "The outcome can be predicted with a specific set of predictors better than chance," or, "The dataset at hand is sufficiently informative to model a relationship between the set of predictors and outcome."
+Indeed, a soft hypothesis like "The outcome can be predicted with a specific set of predictors better than chance," or, "The dataset at hand is sufficiently informative to model a relationship between the set of predictors and outcome" are likely sufficient given the complexity we can measure. 
 
 1. **_Algorithm_**
 * **Theory based**: Algorithm inclusion based on hypothesized relationships in data
