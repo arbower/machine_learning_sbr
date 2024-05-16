@@ -497,4 +497,226 @@ There is no free lunch - so each will have bias depending.
 
 # 3.6 Classification
 
-The same recommendations and principles apply to classification of binary outcomes as the continuous outcomes above. Except with imbalanced or skewed binary outcomes. The most straightforward way of assessing predictions is the accuracy metric: $\text{Accuracy} = \frac{1}{n} \sum_{i=1}^n I(y_i = \hat{y}_i)$. The I here stands for "1" if it is predicted. This requires us to make a predicted class label for each observation. 
+The same recommendations and principles apply to classification of binary outcomes as the continuous outcomes above. Except with imbalanced or skewed binary outcomes. The most straightforward way of assessing predictions is the accuracy metric: $\text{Accuracy} = \frac{1}{n} \sum_\limits{i=1}^n I(y_i = \hat{y}_i)$. The I here stands for "1" if it is predicted. This requires us to make a predicted class label for each observation. 
+
+Following their example in the text and provided documentation we want to display the predicted probabilities and density from a basic logistic regression model. 
+
+```{r}
+pacman::p_load(psychTools, psych, caret, pROC, epiR, ROCR, cutpointr, PRROC, patchwork)
+
+# Load the data for the example
+dd <- epi.bfi
+
+# Following their example: prepare the data
+eb2 <- dd |> 
+  select(1:11) |> 
+  mutate(
+    bdi_cat = as.numeric(bdi > 9), # Cut score of >9 following their code which cites Wikipedia: https://en.wikipedia.org/wiki/Beck_Depression_Inventory. 
+    bdi_cat_fac = factor(bdi_cat, levels = c(0, 1), labels = c("no", "dep"))
+  ) 
+
+# Fit the logistic regression model and summarize
+out <- glm(bdi_cat ~ bfagree + bfcon + bfext + bfneur + bfopen, data = eb2, family = binomial)
+summary(out)
+
+# Predict probabilities model and summarize
+probabilities <- predict(out, type = "response")
+
+# Histogram of probabilities
+df <- tibble(Probability = probabilities)
+
+p1 <- df |> 
+  ggplot(aes(x = Probability)) +
+  geom_histogram(color = "grey40", fill = "grey80", bins = 15) +
+  theme_classic() +
+  xlim(0, 1)
+
+# Density plot of probabilities by class
+dat <- tibble(Probability = probabilities, Class = eb2$bdi_cat_fac)
+
+p2 <- dat |> 
+  ggplot(aes(x = Probability, col = Class, fill = Class)) +
+  geom_density(alpha = 0.5) +
+  xlim(0, 1) +
+  theme_classic() +
+  scale_fill_grey() +
+  scale_color_grey()
+
+p1 + p2
+```
+
+In addition, we can also generate a confusion matrix of Yes when Yes, and No when No, and get a "kappa". 
+
+```{r}
+class.preds <- factor(as.numeric(probabilities > 0.5), levels = c(0, 1), labels = c("no", "dep"))
+confusionMatrix(class.preds, eb2$bdi_cat_fac, positive = "dep")
+```
+
+We can also fit a random forest can compare the calibrations. 
+
+```{r}
+# Train the random forest
+out.rf <- train(as.factor(bdi_cat) ~ bfagree + bfcon + bfext + bfneur + bfopen, data = eb2, method = "rf", tuneLength = 3)
+out.rf
+```
+
+We can then take the output from the random forest and predict probabilities with random forest and calibrate models
+
+```{r}
+prob.rf <- predict(out.rf, type = "prob")[, 2]
+
+xyplot(cal, key = simpleKey(c("Logistic Regression", "Random Forests")), points = c("khaki3", "indianred3"))
+```
+
+Calculate the kappa, which is used to characterize prediction, specifically comparing observed accuracy to what would be expected based on the marginal totals -- we want > 0, and 0.30 - 0.50 indicate reasonable agreement (0.26 in the confusionMatrix out put above), but this tends to be biased when positive rates are rare (e.g., with depression). So, we can also calculate the bias corrected version. 
+
+```{r}
+kappa_res <- epi.kappa(table(eb2$bdi_cat_fac, class.preds))
+kappa_res # list of outputs
+kappa_res[4] # PABAK Kappa is #4
+```
+
+One issue with this approach is we are mutating the probabilities into classes, which we might not know, and may not always be at .5 so we lose some information. To keep the probabilities we would rather examine the predicted probabilities in their natural form with the receiver operating characteristic (ROC) curve. 
+
+## Using Cutoff Not Equal 0.5
+
+The concept to consider is choosing which metric to optimize with your selection of a cutoff. We could identify the optimal cutoff that maximizes accuracy, thus taking into account prediction of both positive and negative classes. Or, we can solely maximize our prediction of the positive class, using a metric like sensitivity or recall, or the F1 score. In the book they used accuracy and F1. 
+
+```{r}
+pred <- prediction(probabilities, eb2$bdi_cat_fac)
+
+# ROC Curve
+roc.perf <- performance(pred, "tpr", "fpr")
+plot(roc.perf, col = "skyblue2", lwd = 2)
+
+# Accuracy
+roc.perf2 <- performance(pred, "acc")
+plot(roc.perf2, col = "salmon2", lwd = 2)
+
+# Lift
+roc.perf3 <- performance(pred, "lift")
+plot(roc.perf3, col = "springgreen2", lwd = 2)
+```
+
+
+
+Using a different model to thos eht ROC curve: 
+
+```{r}
+eb2 <- eb2 |>  
+  mutate(neur_cat = as.numeric(epiNeur > mean(epiNeur)))
+
+out44 <- glm(neur_cat ~ bfagree + bfcon + bfext + bfneur + bfopen, data = eb2, family = binomial)
+summary(out44)
+
+probabilities44 <- predict(out44, type = "response")
+
+pred.neur44 <- prediction(probabilities44, eb2$neur_cat)
+roc.perf44 <- performance(pred.neur44, "tpr", "fpr")
+plot(roc.perf44)
+
+#
+id44 <- which.max(roc.perf44@y.values[[1]])
+cut44 <- roc.perf44@x.values[[1]][id44]
+```
+
+## ROC Curves 
+
+Shown above were designed to use a collection of continuous data to derive a cutoff (threshold) that maximizes a balance between two continuous metrics. In the context of classification, this involves plotting both sensitivity and specificity (using the false positive rate or 1 - specificity in practice across a range of outcomes).
+
+Cutoff decision using `cutpointr` which apparently is 0.21, but that dot in this isn't at 0.21. Unclear from the text. 
+
+```{r}
+cp <- cutpointr(x = probabilities, class = eb2$bdi_cat_fac, method = maximize_metric, metric = sum_sens_spec)
+plot_roc(cp)
+```
+
+# 3.7 Imbalanced Outcomes
+
+It is not uncommon to have an imbalance in outcomes ( < 10% Yes, to 90% No) on some metric (e.g., depression). There are strategies that help like _stratified k-fold CV_; but, splitting into 5-10 different partitions could drastically reduce the 10%. There are ways to adjust this.
+
+## 3.7.1 Sampling
+
+In the context of machine learning, especially with logistic regression or other binary classification models, dealing with imbalanced datasets is crucial. Imbalanced datasets occur when the number of instances of one class significantly outnumbers the other class. This imbalance can lead to biased models that perform well on the majority class but poorly on the minority class.
+
+To address this issue, various resampling techniques can be used:
+
+1. Random Over-Sampling (ROS)
+Description: ROS involves randomly duplicating examples from the minority class to increase its representation in the dataset.
+
+Advantages:
+
+Simple to implement.
+Can help the model learn more about the minority class.
+Disadvantages:
+
+Can lead to overfitting because the model might just memorize the duplicated examples.
+2. Random Under-Sampling (RUS)
+Description: RUS involves randomly removing examples from the majority class to balance the dataset.
+
+Advantages:
+
+Reduces the size of the training set, which can speed up training times.
+Disadvantages:
+
+Potentially removes useful information, which could lead to a loss of predictive performance.
+3. Synthetic Minority Over-sampling Technique (SMOTE)
+Description: SMOTE generates synthetic examples of the minority class by interpolating between existing minority class examples.
+
+Advantages:
+
+Generates new, synthetic examples rather than duplicating, which can help reduce overfitting.
+Helps the model generalize better.
+Disadvantages:
+
+Can create noise if the synthetic examples are not well-formed.
+4. ROSE (Random OverSampling Examples)
+Description: ROSE generates new examples of both classes by adding small amounts of noise to existing examples, which can balance the dataset.
+
+Advantages:
+
+Adds variability by creating synthetic examples with noise.
+Helps improve model generalization.
+Disadvantages:
+
+Requires careful tuning of parameters to avoid introducing too much noise.
+Other Techniques
+5. Tomek Links
+Description: Removes examples from the majority class that are close to minority class examples, effectively making the decision boundary clearer.
+
+Advantages:
+
+Can help in cleaning the data by removing ambiguous points.
+Disadvantages:
+
+Does not significantly change the class distribution, hence might need to be used with other techniques.
+6. ADASYN (Adaptive Synthetic Sampling)
+Description: Similar to SMOTE, but focuses on harder-to-learn examples by generating more synthetic examples near these points.
+
+Advantages:
+
+Focuses on difficult examples, potentially improving the model's ability to handle them.
+Disadvantages:
+
+Can be more complex to implement and requires careful tuning.
+
+
+### Is the AUC Biased with Impbalanced Outcomes
+
+It can be flawed in extreme, and unlikely, scenarios. 
+
+### Area under the precision recall curve
+
+Suggested as an alternative to the AUC, specifically when dealing with imbalanced data. It is useful when comparing models, not stand alone; but, for fun here is an example:
+
+
+```{r}
+# AUC
+pr3 <- pr.curve(scores.class0 = fg, scores.class1 = bg, curve = TRUE)
+plot(pr3, color = FALSE)
+```
+
+
+
+
+
