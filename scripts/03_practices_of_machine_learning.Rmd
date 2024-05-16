@@ -116,13 +116,14 @@ dd |>
   geom_point(col = "steelblue2", alpha = 1/3) +
   geom_smooth(method = "lm", se = FALSE, 
               formula = y ~ x + I(x^2), color = "coral3", linewidth = 1) +
-  theme_tufte() +
+  theme_classic() +
   labs(x = "Phenylalanine Exposure (PHE)^2",
        y = "Full Scale IQ at Age 7") 
 
 ```
 
-We can also fit a random forest
+We can also fit a random forest model that follows the data more closely. 
+
 
 ```{r}
 # Load necessary packages
@@ -165,6 +166,7 @@ rpart_model <- rpart(fsiq7 ~ apexpos, data = dd, method = "anova", control = rpa
 # Visualize the tree
 rpart.plot(rpart_model)
 ```
+
 Let's visiualize this model
 
 ```{r}
@@ -173,7 +175,7 @@ dd |>
   ggplot(aes(x = apexpos, y = fsiq7)) +
   geom_point(col = "steelblue2", alpha = 1/3) +
   geom_step(data = dd_grouped, aes(x = apexpos, y = predicted_fsiq7), color = 'coral3') +
-  theme_tufte() +
+  theme_classic() +
   labs(title = "Random Forest",
        x = "Phenylalanine Exposure (PHE)",
        y = "Full Scale IQ at Age 7") 
@@ -182,6 +184,7 @@ dd |>
 # 3.4 Bias-Variance Trade-Off
 
 Every dataset has a finite amount of information that may be gleaned or extracted. The amount of information is related to many factors, most critically sample size and the quality of the predictors. What follows then is that the more information in a dataset the more information can be learned, in theory; but, generally generates more complex models. Model complexity can be broken down and evaluated as a tradeoff between: error, bias, and variance. 
+
 Error, or Variance of Error, is often called _irreducible error_ or the stuff we cannot control with our models. Basically, how the same scores on X can lead to different Y. A prediction model cannot differentiate these cases. What we do have control over (somewhat) is _bias_, or whether our estimates on average across many random draw from the population equal to the true values in the population. _Variance_ is the variability or precision of these estimates. Ideally we want low bias and low variance but often hard to control
 
 When a model is biased is when we fit a linear model to data that are not linear. That prediction is biased because it is not flexible enough to model the underlying relationships. So, we can test more complex relationships, varying polynomial parameters into the model. When we vary a parameter this is called _tuning parameters_ also known as a hyperparameter (tuning too hard on the data also increases the bias). 
@@ -220,97 +223,85 @@ ggplot(dd, aes(x = apexpos, y = fsiq7)) +
   theme_classic() +
   scale_color_viridis_d()
 ```
+
 We can show how the bias variance tradeoff works with the above by splitting our data into a test and training set. We can assess variance by how much the parameter estimates vary across 100 subsamples, which indicates how much the underlying functional form varies. We lift the code they provide, which is really hard to follow, and try and fix it. The idea here is to look at MSE for a poorly fit, and overly fit (i.e., not flexible and too flexible) algorithm. 
 
+
 ```{r}
-# Create Training dataset at 30% (they had 50)
-dd |> 
-  slice_sample(prop = .30) -> dd_train
+# Trying to recreate Figure 3.7 from their code provide - again, the code is terribly annotated and they recommend seeking ChatGPT for any clarity - which is awful. Why would people pay for this to just complete it with ChatGPT?
 
-# Anti-join back to get testing dataset
-dd |> 
-  anti_join(dd_train) -> dd_test
+# Create a split into training and testing sets
+set.seed(1983)  # For reproducibility
+dd <- dd |>  
+  arrange(apexpos)
 
-# Check them both
-dim(dd_train)
-dim(dd_test)
+train_indices <- sample(seq_len(nrow(dd)), size = 0.8 * nrow(dd))
+data_train <- dd[train_indices,]
+data_test <- dd[-train_indices,]
 
-# Sort Data
-dd_train <- dd_train[order(dd_train$apexpos), ]
-dd_test <- dd_test[order(dd_test$apexpos), ]
-dd <- dd[order(dd$apexpos), ]
-
-# Simulated data
-set.seed(1983)
-num_samples <- 314
-num_train <- round(0.75 * num_samples)
-num_test <- num_samples - num_train
-
-# Adjust scale to achieve desired MSE values
-dd <- data.frame(
-  fsiq7 = rnorm(num_samples),  
-  apexpos = rnorm(num_samples)
-)
-
-dd_train <- dd[1:num_train, ]
-dd_test <- dd[(num_train + 1):num_samples, ]
-
-# Model Performance Comparison
-num_iterations_mse <- 1000
-mse_train <- matrix(NA, num_iterations_mse, 8)
-mse_test <- matrix(NA, num_iterations_mse, 8)
-
-for(i in 1:num_iterations_mse){
-  samp_train <- dd_train[sample(1:num_train, num_train, replace = TRUE), ]
-  samp_test <- dd_test[sample(1:num_test, num_test, replace = TRUE), ]
-  
-  for(j in 1:8){
-    lm_out <- lm(fsiq7 ~ poly(apexpos, j), samp_train)
-    mse_train[i,j] <- mean((samp_train$fsiq7 - predict(lm_out))^2)
-    mse_test[i,j] <- mean((samp_test$fsiq7 - predict(lm_out, samp_test))^2)
-  }
+# Function to calculate MSE for a given sample and polynomial degree
+calculate_mse <- function(train_data, test_data, degree) {
+  lm_out <- lm(fsiq7 ~ poly(apexpos, degree), data = train_data)
+  mse_train <- mean((train_data$fsiq7 - predict(lm_out))^2)
+  mse_test <- mean((test_data$fsiq7 - predict(lm_out, newdata = test_data))^2)
+  list(train = mse_train, test = mse_test)
 }
 
-# Winsorize MSE
-mse_train <- Winsorize(mse_train, probs = c(0.10, 0.90))
-mse_test <- Winsorize(mse_test, probs = c(0.10, 0.90))
+# Generate MSE values for 1000 iterations and polynomial degrees 1 to 8 given their figure
+set.seed(1983)  # For reproducibility
+results <- map_dfr(1:1000, function(i) {
+  samp1 <- data_train %>% sample_n(50)
+  map_dfr(1:8, function(j) {
+    mse <- calculate_mse(samp1, data_test, j)
+    tibble(iteration = i, degree = j, mse_train = mse$train, mse_test = mse$test)
+  })
+})
 
-# Calculate means and variances of MSE
-mean_train <- colMeans(mse_train)
-mean_test <- colMeans(mse_test)
-var_train <- apply(mse_train, 2, var) 
-var_test <- apply(mse_test, 2, var)
+# Winsorize the MSE values to handle extreme values
+results <- results |> 
+  mutate(mse_train = Winsorize(mse_train, probs = c(0.10, 0.90)),
+         mse_test = Winsorize(mse_test, probs = c(0.10, 0.90)))
 
-# Create data frames for plotting
-mean_df <- data.frame(
-  power = 1:8,
-  mean_train = mean_train,
-  mean_test = mean_test
-)
-var_df <- data.frame(
-  power = 1:8,
-  var_train = var_train,
-  var_test = var_test
-)
+# Calculate mean and variance of MSE values
+summary_results <- results |> 
+  group_by(degree) |> 
+  summarise(mean_train = mean(mse_train), mean_test = mean(mse_test),
+            var_train = var(mse_train), var_test = var(mse_test))
 
-# Reshape data for plotting
-mean_long <- tidyr::pivot_longer(mean_df, cols = c(mean_train, mean_test), names_to = "Data", values_to = "Mean")
-var_long <- tidyr::pivot_longer(var_df, cols = c(var_train, var_test), names_to = "Data", values_to = "Variance")
+# Take a look at summary_results
+summary_results
+```
 
-# Plot Mean MSE and MSE Variance side by side
-mean_plot <- ggplot(mean_long, aes(x = power, y = Mean, color = Data)) +
+```{r}
+# Prepare data for plotting
+mean_data <- summary_results |> 
+  select(degree, mean_train, mean_test) |> 
+  pivot_longer(cols = c(mean_train, mean_test), names_to = "Data", values_to = "mse")
+
+var_data <- summary_results |> 
+  select(degree, var_train, var_test) |> 
+  pivot_longer(cols = c(var_train, var_test), names_to = "Data", values_to = "mse")
+
+# Plot Mean MSE
+p1 <- ggplot(mean_data, aes(x = degree, y = mse, color = Data)) +
   geom_line() +
-  labs(x = "Power", y = "Mean MSE") +
-  theme_tufte()
+  xlab('Power') +
+  ylab('Mean MSE') +
+  theme_classic() +
+  scale_colour_grey(start = 0, end = 0.7) +
+  ggtitle("Mean MSE by Polynomial Degrees")
 
-var_plot <- ggplot(var_long, aes(x = power, y = Variance, color = Data)) +
+# Plot MSE Variance
+p2 <- ggplot(var_data, aes(x = degree, y = mse, color = Data)) +
   geom_line() +
-  labs(x = "Power", y = "MSE Variance") +
-  theme_tufte()
+  xlab('Power') +
+  ylab('MSE Variance') +
+  theme_classic() +
+  scale_colour_grey(start = 0, end = 0.7) +
+  ggtitle("MSE Variance by Polynomial Degrees")
 
-# Combine plots side by side
-grid.arrange(mean_plot, var_plot, ncol = 2)
-
+# Print plots side by side
+grid.arrange(p1, p2, ncol = 2)
 ```
 
 But, what we can learn from this is: 
@@ -320,31 +311,190 @@ But, what we can learn from this is:
 3. We want to decrease bias and variance. High degrees of variance are especially problematic with small sample sizes which requires the use of flexible algorithms. 
 4. "How well will my model fit on a holdout sample?" is the question we want to answer because we won't be able to visualize like we did here since most of our projects will have more than one predictor. 
 
-# Resampling
+# 3.5 Resampling
 
 To answer the question "How well will my model fit on a holdout sample?" there were a number of methods developed to provide answers without the need for a second dataset. 
 
 * _Model Assessment_: In estimating a single model, or after choosing a final model, determining the most unbiased assessment of model fit, either on new data or what it would be on new data (e.g., AIC, BIC, QAIC, WAIC, LOOCV, etc.).
 * _Model Selection_: Estimating the performance of multiple algorithms/models and choosing a final model among these. 
 
-The _train-validate-test_ paradigm that splits a sample into 50% train, 25% validate, and 25% test to evaluate the models' performance on an out of sample (test) data to see how close our predictive accuracy is; but, this requires a sample size sufficiently large (e.g., 5000).
+The _train-validate-test_ paradigm that splits a sample into 50% train, 25% validate, and 25% test to evaluate the models' performance on an out of sample (test) data to see how close our predictive accuracy is; but, this requires a sample size sufficiently large (e.g., 5000), which we often do not have access.
 
-## k-Fold CV
+## 3.5.1 k-Fold CV
 
-If it's smaller, then you can keep your sample in tact. In k-fold you can split the data into partitions. Here, you do not rerun on the holdout partitions instead _the model is kept fixed and used to create predicted responses for the observations_. Using the MSE as an example, this formally manifests itself as:
+If you have a smaller sample size -- often the case-- then you can keep your sample in tact. In k-fold you can split the data into partitions a number of partitions. Here, you do not rerun on the holdout partitions instead _the model is kept fixed and used to create predicted responses for the observations_. Using the MSE as an example, this formally manifests itself as:
 
 $\operatorname{MSE_{holdout}} = \frac{1}{n} \sum\limits_{i=1}^{k}(y_i, holdout - \hat{f}training(x_i, holdout))$
 
-Which enamels us to compute the k-fold MSE:
+Which allows us to compute the k-fold MSE:
 
 $\operatorname{MSE_{k-fold}} = \frac{1}{n} \sum\limits_{i=1}^{k}(\operatorname{MSE_k})$
 
 We can do this 10x's, because increasing the partitioning can reduce the chance for aberrant result due to chance, but as we increase it increases computing time. 
 
-## Nested CV
+## 3.5.2 Nested CV
+
+Nested CV works by creating two sets of loops, one loop for model selections, and one loop for model assessment, and can be seen as a repeated extension of the training-validation-test paradigm. Here is an example from their book:
+
+```{r}
+# Simulation and Model Selection with Highest R^2:
+# Load necessary libraries
+pacman::p_load(caret, AppliedPredictiveModeling, psych)
+
+# Set seed for reproducibility
+set.seed(1983)
+
+# Generate latent variables
+lat.var1 <- rnorm(30000)
+lat.var2 <- rnorm(30000)
+
+# Generate response variable
+y <- 0.5 * lat.var1 + 0.5 * lat.var2 + rnorm(30000, 0, 1)
+
+# Summarize the linear model
+summary(lm(y ~ lat.var1 + lat.var2))
+
+# Create a data frame with the variables
+dat1 <- data.frame(y = y, x1 = lat.var1, x2 = lat.var2)
+
+# Initialize a matrix to store R^2 values
+ret <- matrix(NA, 200, 2)
+
+# Loop for 200 repetitions
+for (i in 1:200) {
+  # Sample data for training models
+  samp1 <- dat1[sample(1:30000, 100),]
+  samp2 <- dat1[sample(1:30000, 100),]
+
+  # Train linear models with cross-validation
+  lm1 <- train(y ~ ., data = samp1, method = "lm", trControl = trainControl(method = "cv"))
+  ret[i, 1] <- lm1$results$Rsquared
+
+  lm2 <- train(y ~ ., data = samp2, method = "lm", trControl = trainControl(method = "cv"))
+  ret[i, 2] <- lm2$results$Rsquared
+}
+
+# Describe the R^2 values
+psych::describe(ret)
+
+# Compute the mean of the highest R^2 values across repetitions
+rowM <- apply(ret, 1, function(x) max(x, na.rm = TRUE))
+mean(rowM)
+```
+
+Now, we can do what they did for demonstration showing the value of Nested CV
+
+```{r}
+# Initialize a vector to store R^2 values for nested CV
+ret2 <- rep(NA, 200)
+
+# Loop for 200 repetitions
+for (i in 1:200) {
+  # Sample data for nested CV
+  samp1 <- dat1[sample(1:30000, 100),]
+  samp2 <- dat1[sample(1:30000, 100),]
+
+  # Create folds for cross-validation
+  folds.samp1 <- createFolds(samp1$y, k = 5, list = FALSE)
+  folds.samp2 <- createFolds(samp2$y, k = 5, list = FALSE)
+
+  # Initialize a vector to store R^2 values for each fold
+  rsq <- rep(NA, 5)
+
+  # Nested CV: inner loop
+  for (j in 1:5) {
+    lm1 <- train(y ~ ., data = samp1[folds.samp1 != j,], method = "lm", trControl = trainControl(method = "cv"))
+    lm2 <- train(y ~ ., data = samp2[folds.samp2 != j,], method = "lm", trControl = trainControl(method = "cv"))
+
+    # Select the model with the highest R^2 and evaluate on the holdout fold
+    if (lm1$results$Rsquared > lm2$results$Rsquared) {
+      rsq[j] <- cor(samp1[folds.samp1 == j, "y"], predict(lm1, samp1[folds.samp1 == j,]))^2
+    } else {
+      rsq[j] <- cor(samp2[folds.samp2 == j, "y"], predict(lm2, samp2[folds.samp2 == j,]))^2
+    }
+  }
+
+  # Store the mean R^2 value for the current repetition
+  ret2[i] <- mean(rsq)
+}
+
+# Summarize the results of nested CV
+summary(ret2)
+```
+
+In the additional resources they provide a demo comparing two trained models: a linear model (lm1) and a MARS model (rf1) using the earth method from caret. MARS (Multivariate Adaptive Regression Splines) is a type of regression model used for predicting numerical outcomes. It is a flexible model that can capture non-linear relationships between the predictors (independent variables) and the response variable (dependent variable). The MARS model automatically selects and combines piecewise linear segments to best fit the data. The utility of this example for us is simply showing the value of Nested CV in selecting between different types of regression algorithms. 
 
 
+```{r}
+# Set seed for reproducibility
+set.seed(1983)
 
+# Generate latent variables
+lat.var1 <- rnorm(1000)
+lat.var2 <- rnorm(1000)
 
+# Generate response variable
+y <- 0.5 * lat.var1 + 0.5 * lat.var2 + rnorm(1000, 0, 1)
 
+# Create a data frame with the variables
+dat1 <- data.frame(y = y, x1 = lat.var1, x2 = lat.var2)
 
+# 5-Fold Cross-Validation
+folds.samp1 <- createFolds(dat1$y, k = 5, list = FALSE)
+
+rsq <- rep(NA, 5)
+method <- rep(NA, 5)
+
+for (j in 1:5) {
+  # Train linear model
+  lm1 <- train(y ~ ., data = dat1[folds.samp1 != j, ], method = "lm", trControl = trainControl(method = "cv"))
+  
+  # Train MARS model
+  rf1 <- train(y ~ ., data = dat1[folds.samp1 != j, ], method = "earth", trControl = trainControl(method = "cv"))
+  
+  # Select model with highest R^2 and evaluate on holdout fold
+  if (lm1$results$Rsquared > max(rf1$results$Rsquared)) {
+    rsq[j] <- cor(dat1[folds.samp1 == j, "y"], predict(lm1, dat1[folds.samp1 == j, ]))^2
+    method[j] <- "lm"
+  } else {
+    rsq[j] <- cor(dat1[folds.samp1 == j, "y"], predict(rf1, dat1[folds.samp1 == j, ]))^2
+    method[j] <- "rf"
+  }
+}
+
+# Print the R^2 values and the chosen methods
+print(rsq)
+print(method)
+
+# Summarize the R^2 values
+summary(rsq)
+
+# Visualize the R^2 values
+rsq_data <- data.frame(Fold = 1:5, R_squared = rsq, Method = method)
+
+# Print a summary of the methods chosen
+table(method)
+
+# Plot R^2 values
+rsq_data |> 
+ggplot(aes(x = factor(Fold), y = R_squared, fill = Method)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  theme_classic() +
+  labs(title = "R-squared Values for Each Fold",
+       x = "Fold",
+       y = "R-squared",
+       fill = "Model") +
+  scale_fill_manual(values = c("lm" = "steelblue3", "rf" = "coral3"))
+```
+
+## 3.5.3 Bootstrap Sampling
+
+The main distinction between bootstrap and k-fold CV is that where k-fold CV uses sampling _without_ replacement, the bootstrap uses sampling _with_ replacement.This enables a larger number of repeats compared with k-fold CV, because it's less taxing to split the dataset. 
+
+## 3.5.4 Recommendations
+
+There is no free lunch - so each will have bias depending. 
+
+# 3.6 Classification
+
+The same recommendations and principles apply to classification of binary outcomes as the continuous outcomes above. Except with imbalanced or skewed binary outcomes. The most straightforward way of assessing predictions is the accuracy metric: $\text{Accuracy} = \frac{1}{n} \sum_{i=1}^n I(y_i = \hat{y}_i)$. The I here stands for "1" if it is predicted. This requires us to make a predicted class label for each observation. 
