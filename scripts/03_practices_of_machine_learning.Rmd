@@ -54,7 +54,7 @@ $\operatorname{R}^2 = \frac{\operatorname{SS_{reg}}}{\operatorname{SS_{tot}}}$ w
 
 You can also calculate the $\operatorname{R}^2$ as the squared correlation between the vector of predicted responses and actual responses. This is often best represented visually in a plot. They don't seem to provide access to the data to produce the figure to do this. 
 
-They regress PKU exposure in mothers on infant cognitive development as measured by IQ. The model fit was linear and showed $I\hat{Q}_i = 107.43 - 2.91 * PHE_i$. The model had an MSE of 174.487 and an $R^2$ of 0.699. It does seem that 70% of the variance explained is good, but you can see from the plot (in the book) that the relationship is polynomial regression from $PHE^2 ... PHE^{20}$. The other option is to run a random forest model with minimal trees. They discuss fitting larger trees that fit the data better, but the larger trees maximize on small nuances and occurrences within the data thus fitting the data too well. Many of these fit statistics should not be thought of as all-or-nothing, but rather to a degree. Since _overfititng_ pertains to the degree of generalizability from our fit model. We don't want to be so good at describing our sample that we loose the forest for all the trees.
+They regress PKU exposure in mothers on infant cognitive development as measured by IQ. The model fit was linear and showed $I\hat{Q}_i = 107.43 - 2.91 * PHE_i$. The model had an MSE of 174.487 and an $R^2$ of 0.699. It does seem that 70% of the variance explained is good, but you can see from the plot (in the book) that the relationship is polynomial and they could test wit polynomial regression from $PHE^2 ... PHE^{20}$. The other option is to run a random forest model with minimal trees. They discuss fitting larger trees that fit the data better, but the larger trees maximize on small nuances and occurrences within the data thus fitting the data too well. Many of these fit statistics should not be thought of as all-or-nothing, but rather to a degree. Since _overfititng_ pertains to the degree of generalizability from our fit model. We don't want to be so good at describing our sample that we loose the forest for all the trees.
 
 ```{r}
 # Read Data into R
@@ -69,9 +69,9 @@ glimpse(dd)
 ## Plotting Full Scale IQ by PHE
 dd |> 
   ggplot(aes(x = apexpos, y = fsiq7)) +
-  geom_point() +
-  geom_smooth(method = "lm", se = FALSE, formula = y ~ x, color = "firebrick", linewidth = 0.5) +
-  theme_tufte() +
+  geom_point(col = "steelblue2", alpha = 1/3) +
+  geom_smooth(method = "lm", se = FALSE, formula = y ~ x, color = "coral3", linewidth = 1) +
+  theme_classic() +
   labs(x = "Phenylalanine Exposure (PHE)",
        y = "Full Scale IQ at Age 7") 
 
@@ -90,7 +90,7 @@ RMSE2 <- RSS / fit$df.residual
 print(RMSE2)
 ```
 
-For fun, here is what fitting a polynomial would look like
+For fun, here is what fitting a polynomial would look like. Hard to follow the code provided. 
 
 ```{r}
 dd |> 
@@ -113,18 +113,75 @@ print(RMSE2)
 ## Plotting Full Scale IQ by PHE poly
 dd |> 
   ggplot(aes(x = apexpos, y = fsiq7)) +
-  geom_point() +
-  geom_smooth(method = "lm", se = FALSE, formula = y ~ x + I(x^2), color = "firebrick", linewidth = 0.5) +
+  geom_point(col = "steelblue2", alpha = 1/3) +
+  geom_smooth(method = "lm", se = FALSE, 
+              formula = y ~ x + I(x^2), color = "coral3", linewidth = 1) +
   theme_tufte() +
-  labs(x = "Phenylalanine Exposure (PHE)",
+  labs(x = "Phenylalanine Exposure (PHE)^2",
        y = "Full Scale IQ at Age 7") 
 
+```
+
+We can also fit a random forest
+
+```{r}
+# Load necessary packages
+pacman::p_load(randomForest, rpart, rpart.plot)
+
+# Take a look at your data
+dd
+
+# Fit a Random Forest model
+set.seed(1983)
+rf_model <- randomForest(fsiq7 ~ apexpos, data = dd, ntree = 100, importance = TRUE)
+
+# Predict using the Random Forest model
+dd$predicted_fsiq7 <- predict(rf_model, dd)
+
+# Look at the predictions
+head(dd)
+
+# Aggregate the data to fewer steps
+# Here we are manually setting up the groups for demonstration purposes
+dd_grouped <- dd |> 
+  mutate(group = ntile(apexpos, 4)) |>   # Create 4 groups based on apexpos
+  group_by(group) |> 
+  dplyr::summarize(apexpos = mean(apexpos), fsiq7 = mean(fsiq7), predicted_fsiq7 = mean(predicted_fsiq7))
+
+
+# Print the model summary
+print(rf_model)
+
+# Plot variable importance
+importance(rf_model)
+varImpPlot(rf_model)
+
+# Extract a single tree from the Random Forest
+single_tree <- getTree(rf_model, k = 1, labelVar = TRUE)
+
+# Fit a similar tree using rpart for visualization
+rpart_model <- rpart(fsiq7 ~ apexpos, data = dd, method = "anova", control = rpart.control(cp = 0.02))
+
+# Visualize the tree
+rpart.plot(rpart_model)
+```
+Let's visiualize this model
+
+```{r}
+# Plot using ggplot2
+dd |> 
+  ggplot(aes(x = apexpos, y = fsiq7)) +
+  geom_point(col = "steelblue2", alpha = 1/3) +
+  geom_step(data = dd_grouped, aes(x = apexpos, y = predicted_fsiq7), color = 'coral3') +
+  theme_tufte() +
+  labs(title = "Random Forest",
+       x = "Phenylalanine Exposure (PHE)",
+       y = "Full Scale IQ at Age 7") 
 ```
 
 # 3.4 Bias-Variance Trade-Off
 
 Every dataset has a finite amount of information that may be gleaned or extracted. The amount of information is related to many factors, most critically sample size and the quality of the predictors. What follows then is that the more information in a dataset the more information can be learned, in theory; but, generally generates more complex models. Model complexity can be broken down and evaluated as a tradeoff between: error, bias, and variance. 
-
 Error, or Variance of Error, is often called _irreducible error_ or the stuff we cannot control with our models. Basically, how the same scores on X can lead to different Y. A prediction model cannot differentiate these cases. What we do have control over (somewhat) is _bias_, or whether our estimates on average across many random draw from the population equal to the true values in the population. _Variance_ is the variability or precision of these estimates. Ideally we want low bias and low variance but often hard to control
 
 When a model is biased is when we fit a linear model to data that are not linear. That prediction is biased because it is not flexible enough to model the underlying relationships. So, we can test more complex relationships, varying polynomial parameters into the model. When we vary a parameter this is called _tuning parameters_ also known as a hyperparameter (tuning too hard on the data also increases the bias). 
@@ -139,10 +196,31 @@ fit1 <- lm(fsiq7 ~ poly(apexpos, 20), data = dd2)
 summary(fit1)
 
 # Plot it
-plot(dd2$apexpos, dd2$fsiq7, ylab = "Full Scale IQ at Age 7", xlab = "Phenylalanine Exposure (PHE)")
-lines(dd2$apexpos, predict(fit1), col = "firebrick")
+# Fit polynomial regression models and predict
+poly_predictions <- list()
+degrees <- 1:20
+
+for (degree in degrees) {
+  formula <- as.formula(paste("fsiq7 ~ poly(apexpos, ", degree, ")", sep = ""))
+  fit <- lm(formula, data = dd2)
+  pred <- predict(fit, newdata = dd2)
+  poly_predictions[[degree + 1]] <- data.frame(apexpos = dd$apexpos, fsiq7 = pred, degree = degree)
+}
+
+# Combine all predictions into one data frame
+all_predictions <- bind_rows(poly_predictions)
+
+# Plot using ggplot2
+ggplot(dd, aes(x = apexpos, y = fsiq7)) +
+  geom_point(col = "steelblue2", alpha = 1/3) +
+  geom_line(data = all_predictions, aes(y = fsiq7, color = as.factor(degree)), show.legend = FALSE) +
+  labs(title = 'Polynomial Regression Lines from Degree 1 to 20',
+       x = 'Phenylalanine Exposure (PHE)',
+       y = 'Full Scale IQ at Age 7') +
+  theme_classic() +
+  scale_color_viridis_d()
 ```
-We can show how the bias variance tradeoff works with the above by splitting our data into a test and training set. We can assess variance by how much the parameter estimates vary across 100 subsamples, which indicates how much the underlying functional form varies. We lift the code they provide, which is really poorly documented, and try and fix it. The idea here is to look at MSE for a poorly fit, and overly fit (i.e., not flexible and too flexible) algorithm. It doesn't work like their code because a) their code isn't reproducible b) their code is trash. 
+We can show how the bias variance tradeoff works with the above by splitting our data into a test and training set. We can assess variance by how much the parameter estimates vary across 100 subsamples, which indicates how much the underlying functional form varies. We lift the code they provide, which is really hard to follow, and try and fix it. The idea here is to look at MSE for a poorly fit, and overly fit (i.e., not flexible and too flexible) algorithm. 
 
 ```{r}
 # Create Training dataset at 30% (they had 50)
@@ -163,7 +241,7 @@ dd_test <- dd_test[order(dd_test$apexpos), ]
 dd <- dd[order(dd$apexpos), ]
 
 # Simulated data
-set.seed(123)
+set.seed(1983)
 num_samples <- 314
 num_train <- round(0.75 * num_samples)
 num_test <- num_samples - num_train
